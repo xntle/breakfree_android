@@ -1,5 +1,7 @@
 package com.example.breakfree.ui.home
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -40,8 +42,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,11 +59,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.example.breakfree.service.BreakFreeAccessibilityService
+import com.example.breakfree.session.ActiveSession
+import com.example.breakfree.session.SessionManager
 import com.example.breakfree.ui.components.GlassCard
 import com.example.breakfree.ui.theme.AppBackground
 import com.example.breakfree.ui.theme.GlassBg
@@ -71,7 +83,25 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen() {
+    val session by SessionManager.activeSession.collectAsState()
+    var showSheet by remember { mutableStateOf(false) }
     var showToast by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var serviceEnabled by remember {
+        mutableStateOf(BreakFreeAccessibilityService.isEnabled(context))
+    }
+
+    // Re-check service status every time screen resumes (user may have just enabled it)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                serviceEnabled = BreakFreeAccessibilityService.isEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(showToast) {
         if (showToast) {
@@ -85,7 +115,6 @@ fun HomeScreen() {
             .fillMaxSize()
             .background(AppBackground)
     ) {
-        // Scrollable content
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -98,21 +127,70 @@ fun HomeScreen() {
         ) {
             item { StatsCard() }
             item { Spacer(Modifier.height(4.dp)) }
-            item { StartSessionButton() }
+
+            // Start button only visible when no session is running
+            if (session == null) {
+                item { StartSessionButton(onClick = { showSheet = true }) }
+            }
+
             item { Spacer(Modifier.height(12.dp)) }
             item { SectionHeader("now") }
-            item { ScreenTimeCard() }
+
+            // Active session card
+            if (session != null) {
+                item {
+                    ActiveSessionCard(
+                        session = session!!,
+                        onEnd = { SessionManager.endSession() }
+                    )
+                }
+            }
+
+            // Accessibility permission card — always show until enabled
+            if (!serviceEnabled) {
+                item {
+                    ScreenTimeCard(onEnable = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                        )
+                    })
+                }
+            }
+
             item { Spacer(Modifier.height(12.dp)) }
             item { SectionHeader("upcoming") }
             item { EmptyUpcomingCard() }
+
             item { Spacer(Modifier.height(12.dp)) }
             item { SectionHeader("quick challenges") }
-            item { QuickChallengeCard("morning focus", "25 min • apps blocked", "🌅") }
-            item { QuickChallengeCard("deep work", "90 min • apps blocked", "🧠") }
-            item { QuickChallengeCard("evening wind down", "45 min • apps blocked", "🌙") }
+            item {
+                QuickChallengeCard(
+                    title = "morning focus",
+                    subtitle = "25 min • apps blocked",
+                    emoji = "🌅",
+                    onClick = { SessionManager.startSession(25, emptySet()) }
+                )
+            }
+            item {
+                QuickChallengeCard(
+                    title = "deep work",
+                    subtitle = "90 min • apps blocked",
+                    emoji = "🧠",
+                    onClick = { SessionManager.startSession(90, emptySet()) }
+                )
+            }
+            item {
+                QuickChallengeCard(
+                    title = "evening wind down",
+                    subtitle = "45 min • apps blocked",
+                    emoji = "🌙",
+                    onClick = { SessionManager.startSession(45, emptySet()) }
+                )
+            }
         }
 
-        // Floating pet button
         FloatingPetButton(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -120,7 +198,6 @@ fun HomeScreen() {
                 .zIndex(2f)
         )
 
-        // Toast — slides in below header
         AnimatedVisibility(
             visible = showToast,
             enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
@@ -133,7 +210,6 @@ fun HomeScreen() {
             MotivationalToast()
         }
 
-        // Header — always on top
         Header(
             streakDays = 7,
             onStreakTap = { showToast = true },
@@ -142,7 +218,87 @@ fun HomeScreen() {
                 .zIndex(4f)
         )
     }
+
+    if (showSheet) {
+        StartSessionSheet(
+            onDismiss = { showSheet = false },
+            onStart = { duration, apps ->
+                SessionManager.startSession(duration, apps)
+                showSheet = false
+            }
+        )
+    }
 }
+
+// ── Active session card ──────────────────────────────────────────────────────
+
+@Composable
+fun ActiveSessionCard(session: ActiveSession, onEnd: () -> Unit) {
+    var remainingMs by remember(session) { mutableLongStateOf(session.remainingMs) }
+
+    LaunchedEffect(session) {
+        while (remainingMs > 0L) {
+            delay(1000)
+            remainingMs = session.remainingMs
+        }
+        onEnd()
+    }
+
+    val totalSeconds = remainingMs / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    val timeText = if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
+    }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "focus session",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.displayMedium,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(2.dp))
+                val count = session.blockedApps.size
+                Text(
+                    text = if (count == 0) "reels blocked" else "$count app${if (count == 1) "" else "s"} + reels blocked",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x22FF4444))
+                    .border(1.dp, Color(0x55FF4444), RoundedCornerShape(50))
+                    .clickable { onEnd() }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = "end",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = Color(0xFFFF4444)
+                )
+            }
+        }
+    }
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
 
 @Composable
 fun Header(
@@ -174,7 +330,6 @@ fun Header(
             color = TextPrimary,
             modifier = Modifier.align(Alignment.CenterStart)
         )
-
         Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -195,6 +350,8 @@ fun Header(
         }
     }
 }
+
+// ── Stats card ───────────────────────────────────────────────────────────────
 
 @Composable
 fun StatsCard() {
@@ -247,25 +404,20 @@ fun JarVisual(progress: Float) {
             val inset = strokeWidth / 2
             val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
             val topLeft = Offset(inset, inset)
-
             drawArc(
                 color = Color(0x1AFFFFFF),
-                startAngle = -90f,
-                sweepAngle = 360f,
+                startAngle = -90f, sweepAngle = 360f,
                 useCenter = false,
                 style = Stroke(strokeWidth),
-                topLeft = topLeft,
-                size = arcSize
+                topLeft = topLeft, size = arcSize
             )
             if (progress > 0f) {
                 drawArc(
                     color = Color.White,
-                    startAngle = -90f,
-                    sweepAngle = 360f * progress,
+                    startAngle = -90f, sweepAngle = 360f * progress,
                     useCenter = false,
                     style = Stroke(strokeWidth, cap = StrokeCap.Round),
-                    topLeft = topLeft,
-                    size = arcSize
+                    topLeft = topLeft, size = arcSize
                 )
             }
         }
@@ -273,10 +425,12 @@ fun JarVisual(progress: Float) {
     }
 }
 
+// ── Buttons & sections ───────────────────────────────────────────────────────
+
 @Composable
-fun StartSessionButton() {
+fun StartSessionButton(onClick: () -> Unit = {}) {
     Button(
-        onClick = { },
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp),
@@ -307,7 +461,7 @@ fun SectionHeader(title: String) {
 }
 
 @Composable
-fun ScreenTimeCard() {
+fun ScreenTimeCard(onEnable: () -> Unit = {}) {
     GlassCard(modifier = Modifier.fillMaxWidth(), innerPadding = 16.dp) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -345,7 +499,7 @@ fun ScreenTimeCard() {
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(Color.White)
-                    .clickable { }
+                    .clickable { onEnable() }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(
@@ -374,7 +528,12 @@ fun EmptyUpcomingCard() {
 }
 
 @Composable
-fun QuickChallengeCard(title: String, subtitle: String, emoji: String) {
+fun QuickChallengeCard(
+    title: String,
+    subtitle: String,
+    emoji: String,
+    onClick: () -> Unit = {}
+) {
     GlassCard(modifier = Modifier.fillMaxWidth(), innerPadding = 16.dp) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -400,7 +559,7 @@ fun QuickChallengeCard(title: String, subtitle: String, emoji: String) {
                     .clip(RoundedCornerShape(50))
                     .background(GlassBgStrong)
                     .border(1.dp, GlassBorder, RoundedCornerShape(50))
-                    .clickable { }
+                    .clickable { onClick() }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(
@@ -413,6 +572,8 @@ fun QuickChallengeCard(title: String, subtitle: String, emoji: String) {
     }
 }
 
+// ── Toast ────────────────────────────────────────────────────────────────────
+
 @Composable
 fun MotivationalToast() {
     val messages = listOf(
@@ -422,15 +583,12 @@ fun MotivationalToast() {
         "your future self will thank you"
     )
     val message = remember { messages.random() }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(
-                Brush.horizontalGradient(
-                    colors = listOf(Color(0x55FF6B35), Color(0x55FF8C42))
-                )
+                Brush.horizontalGradient(colors = listOf(Color(0x55FF6B35), Color(0x55FF8C42)))
             )
             .border(1.dp, Color(0x66FF6B35), RoundedCornerShape(16.dp))
             .padding(horizontal = 20.dp, vertical = 14.dp)
@@ -445,6 +603,8 @@ fun MotivationalToast() {
     }
 }
 
+// ── Floating pet button ───────────────────────────────────────────────────────
+
 @Composable
 fun FloatingPetButton(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "pet_bob")
@@ -457,7 +617,6 @@ fun FloatingPetButton(modifier: Modifier = Modifier) {
         ),
         label = "bob"
     )
-
     Box(
         modifier = modifier
             .size(64.dp)
