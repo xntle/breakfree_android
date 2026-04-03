@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/Library/Android/sdk/emulator/emulator -list-avds)",
+      "Bash(find /Users/anle/Desktop/AndroidStudioProjects/breakfree -type d ! -path */build/* ! -path */.gradle/* ! -path */.idea/* ! -path */.kotlin/*)"
+    ]
+  }
+}
