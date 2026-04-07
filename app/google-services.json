@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "400742064552",
+    "project_id": "breakfree-android",
+    "storage_bucket": "breakfree-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:400742064552:android:5ec0e1890ea5665ddafd9d",
+        "android_client_info": {
+          "package_name": "com.example.breakfree"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "400742064552-44eq4sb5k78sq6m1vgcpkfjnlvfs44pl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.breakfree",
+            "certificate_hash": "871e88e84922675c246b2bea3c9504378514c3f0"
+          }
+        },
+        {
+          "client_id": "400742064552-rru00m91vif04hgtfh1oka40025jg0ts.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-MMzf6_Qesrl4Eo-pTCdqmCmnrR3odiY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "400742064552-rru00m91vif04hgtfh1oka40025jg0ts.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

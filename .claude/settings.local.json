@@ -3,7 +3,9 @@
     "allow": [
       "Bash(~/Library/Android/sdk/emulator/emulator -list-avds)",
       "Bash(find /Users/anle/Desktop/AndroidStudioProjects/breakfree -type d ! -path */build/* ! -path */.gradle/* ! -path */.idea/* ! -path */.kotlin/*)",
-      "Bash(./gradlew assembleDebug)"
+      "Bash(./gradlew assembleDebug)",
+      "Bash(git:*)",
+      "Bash(xxd /Users/anle/Desktop/AndroidStudioProjects/breakfree/app/src/main/res/drawable/ic_google.xml)"
     ]
   }
 }
