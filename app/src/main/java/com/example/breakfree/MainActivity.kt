@@ -1,5 +1,6 @@
 package com.example.breakfree
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -11,14 +12,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Leaderboard
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -37,6 +38,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.breakfree.ui.auth.LoginScreen
 import com.example.breakfree.ui.home.HomeScreen
+import com.example.breakfree.ui.onboarding.OnboardingScreen
+import com.example.breakfree.ui.profile.ProfileScreen
+import com.example.breakfree.ui.socials.SocialsScreen
 import com.example.breakfree.ui.theme.AppBackground
 import com.example.breakfree.ui.theme.BreakfreeTheme
 import com.example.breakfree.ui.theme.GlassBg
@@ -46,9 +50,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 
 class MainActivity : ComponentActivity() {
@@ -58,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     private var isLoggedIn by mutableStateOf(false)
     private var isSigningIn by mutableStateOf(false)
+    private var showOnboarding by mutableStateOf(false)
 
     private val signInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -76,8 +81,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         auth = Firebase.auth
-        auth.signOut()
         isLoggedIn = auth.currentUser != null
+
+        val prefs = getSharedPreferences("breakfree", Context.MODE_PRIVATE)
+        showOnboarding = !prefs.getBoolean("onboarding_done", false)
 
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
@@ -88,15 +95,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BreakfreeTheme {
-                if (isLoggedIn) {
-                    BreakFreeApp()
-                } else {
-                    LoginScreen(
-                        onSignInWithGoogle = {
+                when {
+                    showOnboarding -> OnboardingScreen {
+                        prefs.edit().putBoolean("onboarding_done", true).apply()
+                        showOnboarding = false
+                    }
+                    !isLoggedIn -> LoginScreen(
+                        onSignIn = {
                             isSigningIn = true
                             signInLauncher.launch(googleSignInClient.signInIntent)
                         },
                         isLoading = isSigningIn
+                    )
+                    else -> BreakFreeApp(
+                        onSignOut = {
+                            auth.signOut()
+                            googleSignInClient.signOut()
+                            isLoggedIn = false
+                        }
                     )
                 }
             }
@@ -124,12 +140,12 @@ private data class NavTab(
 )
 
 @Composable
-fun BreakFreeApp() {
+fun BreakFreeApp(onSignOut: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
         NavTab("home", Icons.Filled.Home, Icons.Outlined.Home),
-        NavTab("messages", Icons.Filled.Email, Icons.Outlined.Email),
+        NavTab("socials", Icons.Filled.Tag, Icons.Outlined.Tag),
         NavTab("social", Icons.Filled.Leaderboard, Icons.Outlined.Leaderboard),
         NavTab("profile", Icons.Filled.Person, Icons.Outlined.Person),
     )
@@ -141,9 +157,9 @@ fun BreakFreeApp() {
     ) {
         when (selectedTab) {
             0 -> HomeScreen()
-            1 -> PlaceholderScreen("messages")
+            1 -> SocialsScreen()
             2 -> PlaceholderScreen("social")
-            3 -> PlaceholderScreen("profile")
+            3 -> ProfileScreen(onSignOut = onSignOut)
         }
 
         NavigationBar(

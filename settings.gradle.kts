@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "breakfree"
 include(":app")
+include(":app:screens")

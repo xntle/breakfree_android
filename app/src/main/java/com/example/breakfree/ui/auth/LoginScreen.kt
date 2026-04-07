@@ -1,10 +1,10 @@
 package com.example.breakfree.ui.auth
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -43,7 +43,7 @@ import com.example.breakfree.ui.theme.TextSecondary
 
 @Composable
 fun LoginScreen(
-    onSignInWithGoogle: () -> Unit,
+    onSignIn: () -> Unit,
     isLoading: Boolean = false
 ) {
     val context = LocalContext.current
@@ -65,7 +65,6 @@ fun LoginScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Video background
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -77,23 +76,25 @@ fun LoginScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Dark overlay so text stays readable
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.55f))
         )
 
-        // Content
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
+                .padding(horizontal = 28.dp)
         ) {
+            // Branding at top
             Column(
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "breakfree",
@@ -105,16 +106,17 @@ fun LoginScreen(
                     color = TextPrimary
                 )
                 Text(
-                    text = "reclaim your focus",
+                    text = "block noise, keep messages",
                     style = MaterialTheme.typography.bodyLarge,
                     color = TextSecondary
                 )
             }
 
+            // Sign-in button at bottom
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 24.dp, vertical = 48.dp)
+                    .padding(bottom = 48.dp)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
@@ -124,30 +126,32 @@ fun LoginScreen(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    OutlinedButton(
-                        onClick = onSignInWithGoogle,
+                    Button(
+                        onClick = onSignIn,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF3A3A3A)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = TextPrimary
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color.Black
                         )
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_google),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.Unspecified
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Continue with Google",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Medium
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_google),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.Unspecified
                             )
-                        )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Sign in with Google",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            )
+                        }
                     }
                 }
             }
